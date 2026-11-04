@@ -249,6 +249,30 @@ button:disabled { opacity: 0.45; cursor: default; }
   border: 1px solid var(--line); background: var(--bg); color: var(--text);
 }
 
+/* ---------- Nhóm chủ đề ---------- */
+.group-desc { margin: -6px 4px 12px; font-size: 14px; color: var(--muted); }
+.sub-title { font-size: 16px; margin: 16px 4px 8px; }
+section + section .section-title { margin-top: 18px; }
+
+/* ---------- Kính ngữ ---------- */
+.k-sit { background: var(--primary-soft); border-radius: 12px; padding: 8px 12px; margin-top: 6px; font-weight: 600; }
+.k-label { font-size: 13px; color: var(--muted); margin-top: 12px; text-align: center; }
+.question.k-plain { margin-top: 2px; }
+.k-task { text-align: center; color: var(--primary-dark); }
+.k-ans { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--s2-bg); font-size: 17px; }
+.k-ans.main { font-weight: 700; font-size: 19px; }
+.k-note { font-size: 14.5px; padding: 8px 12px; border-radius: 10px; background: var(--bg); }
+.ktype { font-size: 14.5px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ktype:last-child { border-bottom: 0; }
+.ktype-name { display: inline-block; font-weight: 700; color: var(--primary-dark); min-width: 56px; }
+.verb-table summary { cursor: pointer; margin-bottom: 0; }
+.verb-table[open] summary { margin-bottom: 8px; }
+.table-wrap { overflow-x: auto; }
+.verb-table table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.verb-table th, .verb-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.verb-table th { font-size: 13px; color: var(--muted); font-weight: 600; }
+.verb-table td:first-child { font-weight: 700; white-space: nowrap; }
+
 /* ---------- Thanh tab dưới ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;

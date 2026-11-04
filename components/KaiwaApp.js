@@ -7,12 +7,14 @@ import {
 } from "../lib/store";
 import Practice from "./Practice";
 import Fillers from "./Fillers";
+import Keigo from "./Keigo";
 import Favorites from "./Favorites";
 import Stats from "./Stats";
 
 const TABS = [
   { id: "practice", icon: "🗣️", label: "Luyện nói" },
-  { id: "fillers", icon: "💬", label: "Câu giờ & Aizuchi" },
+  { id: "keigo", icon: "🙇", label: "Kính ngữ" },
+  { id: "fillers", icon: "💬", label: "Câu giờ" },
   { id: "favorites", icon: "⭐", label: "Yêu thích" },
   { id: "stats", icon: "📊", label: "Thống kê" },
 ];
@@ -23,6 +25,7 @@ export default function KaiwaApp() {
   const [session, setSession] = useState(null);
   const [sync, setSync] = useState({ status: "idle", at: null, error: null });
   const [practiceRequest, setPracticeRequest] = useState(null);
+  const [keigoRequest, setKeigoRequest] = useState(null);
 
   const deviceId = useRef("local");
   const stateRef = useRef(state);
@@ -105,6 +108,11 @@ export default function KaiwaApp() {
     setTab("practice");
   };
 
+  const practiceKeigoFavorites = () => {
+    setKeigoRequest({ groupId: "fav", n: Date.now() });
+    setTab("keigo");
+  };
+
   if (!state) return <div className="loading">Đang tải…</div>;
 
   const today = countOn(state, dateKey());
@@ -145,8 +153,20 @@ export default function KaiwaApp() {
             onRequestHandled={() => setPracticeRequest(null)}
           />
         )}
+        {tab === "keigo" && (
+          <Keigo
+            state={state}
+            onPracticed={onPracticed}
+            onToggleFav={onToggleFav}
+            onSettings={onSettings}
+            request={keigoRequest}
+            onRequestHandled={() => setKeigoRequest(null)}
+          />
+        )}
         {tab === "fillers" && <Fillers />}
-        {tab === "favorites" && <Favorites state={state} onToggleFav={onToggleFav} onPractice={practiceFavorites} />}
+        {tab === "favorites" && (
+          <Favorites state={state} onToggleFav={onToggleFav} onPractice={practiceFavorites} onPracticeKeigo={practiceKeigoFavorites} />
+        )}
         {tab === "stats" && <Stats state={state} session={session} sync={sync} onSyncNow={syncNow} />}
       </main>
 
