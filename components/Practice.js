@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TOPICS, TOPIC_BY_ID, QUESTION_BY_ID } from "../lib/data/questions";
-import { speakJa, getRecognitionClass, MIC_ERRORS } from "../lib/speech";
+import { speakJa, getRecognitionClass, ensureMicPermission, MIC_ERRORS } from "../lib/speech";
 
 const SECONDS = [5, 10, 15];
 
@@ -215,11 +215,14 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
     setRunning(true);
   }
 
-  function toggleMic() {
+  const [askingMic, setAskingMic] = useState(false);
+
+  async function toggleMic() {
     if (listening) {
       recRef.current?.stop();
       return;
     }
+    if (askingMic) return;
     const SR = getRecognitionClass();
     if (!SR) {
       setMicError("Trình duyệt này chưa hỗ trợ nhận giọng nói. Hãy mở app bằng Google Chrome (máy tính hoặc Android).");
@@ -230,6 +233,15 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
       return;
     }
     window.speechSynthesis?.cancel();
+    setMicError("");
+    setRunning(false);
+    setAskingMic(true);
+    const permErr = await ensureMicPermission();
+    setAskingMic(false);
+    if (permErr) {
+      setMicError(permErr);
+      return;
+    }
     const rec = new SR();
     rec.lang = "ja-JP";
     rec.interimResults = true;
@@ -308,7 +320,9 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
         <button className={`mic ${listening ? "on" : ""}`} onClick={toggleMic} aria-label="Micro">
           {listening ? "⏹" : "🎤"}
         </button>
-        <div className="mic-hint">{listening ? "Đang nghe… nói xong bấm ⏹" : "Bấm để nói (tiếng Nhật)"}</div>
+        <div className="mic-hint">
+          {askingMic ? "Chrome đang hỏi quyền micro → bấm \"Cho phép\" (Allow)" : listening ? "Đang nghe… nói xong bấm ⏹" : "Bấm để nói (tiếng Nhật)"}
+        </div>
       </div>
 
       {micError && <div className="alert">{micError}</div>}
