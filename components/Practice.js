@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TOPICS, TOPIC_BY_ID, QUESTION_BY_ID } from "../lib/data/questions";
-import { speakJa, getRecognitionClass, ensureMicPermission, MIC_ERRORS } from "../lib/speech";
+import { speakJa, stopSpeaking, getRecognitionClass, ensureMicPermission, MIC_ERRORS } from "../lib/speech";
 
 const SECONDS = [5, 10, 15];
 
@@ -143,7 +143,7 @@ function TopicPicker({ state, onStart, settings, onSettings }) {
           <input type="checkbox" checked={!!settings.shuffle} onChange={(e) => onSettings({ shuffle: e.target.checked })} />
         </label>
         <label className="setting">
-          <span>🔊 Tự đọc câu hỏi khi sang thẻ mới</span>
+          <span>🔊 Tự đọc câu hỏi (đồng hồ chạy sau khi đọc xong)</span>
           <input type="checkbox" checked={!!settings.autoSpeak} onChange={(e) => onSettings({ autoSpeak: e.target.checked })} />
         </label>
         <label className="setting">
@@ -173,7 +173,8 @@ function Seg({ value, options, onChange, suffix = "" }) {
 function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, topicLabel }) {
   const seconds = settings.seconds || 10;
   const [timeLeft, setTimeLeft] = useState(seconds);
-  const [running, setRunning] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [showVi, setShowVi] = useState(!!settings.showVi);
   const [showSample, setShowSample] = useState(false);
   const [listening, setListening] = useState(false);
@@ -193,24 +194,50 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
     return () => clearTimeout(t);
   }, [running, timeLeft]);
 
-  // Đổi số giây → đếm lại
+  // Đọc câu hỏi xong mới bắt đầu đếm ngược.
+  // readToken: mỗi lần đọc / bấm mic / rời thẻ sẽ tăng số → lượt đọc cũ không khởi động đồng hồ nữa.
+  const readToken = useRef(0);
+
+  async function readQuestion() {
+    const token = ++readToken.current;
+    setRunning(false);
+    setTimeLeft(seconds);
+    setSpeaking(true);
+    await speakJa(q.ja);
+    if (token !== readToken.current) return;
+    setSpeaking(false);
+    setTimeLeft(seconds);
+    setRunning(true);
+  }
+
+  function cancelReading() {
+    readToken.current++;
+    setSpeaking(false);
+    stopSpeaking();
+  }
+
+  // Đổi số giây → đếm lại (nếu đang đọc thì chờ đọc xong)
   const firstSeconds = useRef(true);
   useEffect(() => {
     if (firstSeconds.current) { firstSeconds.current = false; return; }
     setTimeLeft(seconds);
-    setRunning(true);
+    if (!speaking) setRunning(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seconds]);
 
   useEffect(() => {
-    if (settings.autoSpeak) speakJa(q.ja);
+    if (settings.autoSpeak) readQuestion();
+    else setRunning(true);
     return () => {
+      readToken.current++;
       recRef.current?.abort();
-      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+      stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function restartTimer() {
+    cancelReading();
     setTimeLeft(seconds);
     setRunning(true);
   }
@@ -232,7 +259,7 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
       setMicError("Micro chỉ hoạt động khi mở app qua đường link https:// (hoặc localhost).");
       return;
     }
-    window.speechSynthesis?.cancel();
+    cancelReading();
     setMicError("");
     setRunning(false);
     setAskingMic(true);
@@ -282,6 +309,8 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
 
   function revealSample() {
     setShowSample((v) => !v);
+    readToken.current++;
+    setSpeaking(false);
     setRunning(false);
     onEngaged();
   }
@@ -301,14 +330,16 @@ function QuestionCard({ q, settings, onSettings, isFav, onToggleFav, onEngaged, 
       {showVi && <div className="question-vi">{q.vi}</div>}
 
       <div className="row qtools">
-        <button className="btn small" onClick={() => speakJa(q.ja)}>🔊 Nghe câu hỏi</button>
+        <button className="btn small" onClick={readQuestion} disabled={speaking}>{speaking ? "🔊 Đang đọc…" : "🔊 Nghe lại"}</button>
         <button className="btn small" onClick={() => { setShowVi(!showVi); }}>{showVi ? "🙈 Ẩn nghĩa" : "🇻🇳 Hiện nghĩa"}</button>
       </div>
 
       <div className={`timer ${timeLeft === 0 ? "over" : ""}`}>
         <div className="timer-bar"><div style={{ width: `${pct}%` }} /></div>
         <div className="timer-row">
-          <span className="timer-num">{timeLeft === 0 ? "⏰ Hết giờ! Nói ngay nào!" : `⏱️ ${timeLeft}s suy nghĩ`}</span>
+          <span className="timer-num">
+            {speaking ? "🔊 Đang đọc câu hỏi… nghe kỹ nhé" : timeLeft === 0 ? "⏰ Hết giờ! Nói ngay nào!" : `⏱️ ${timeLeft}s suy nghĩ`}
+          </span>
           <span className="timer-ctrl">
             <Seg value={seconds} options={SECONDS} onChange={(v) => onSettings({ seconds: v })} suffix="s" />
             <button className="btn ghost small" onClick={restartTimer} title="Đếm lại">↻</button>
