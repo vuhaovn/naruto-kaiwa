@@ -1,14 +1,15 @@
 // Luyện kính ngữ: cho tình huống + câu thường → nói lại bằng kính ngữ.
 // item: { sit (tình huống, tiếng Việt), plain (câu thường), ans: [đáp án chính, cách nói khác…], note (giải thích) }
+import type { KeigoGroup, KeigoGroupInput, KeigoItem, KeigoType, VerbRow } from "../types";
 
-export const KEIGO_TYPES = [
+export const KEIGO_TYPES: KeigoType[] = [
   { name: "丁寧語", vi: "Thể lịch sự", desc: "です・ます, ございます. Lịch sự chung, dùng với mọi người." },
   { name: "尊敬語", vi: "Tôn kính ngữ", desc: "NÂNG hành động của người khác (khách, cấp trên). VD: いらっしゃる, おっしゃる, ご覧になる." },
   { name: "謙譲語", vi: "Khiêm nhường ngữ", desc: "HẠ hành động của mình (và người công ty mình khi nói với người ngoài). VD: 伺う, 申す, 拝見する." },
 ];
 
 // Bảng động từ đặc biệt: [thường, 尊敬語, 謙譲語]
-export const VERB_TABLE = [
+export const VERB_TABLE: VerbRow[] = [
   ["いる", "いらっしゃる", "おる"],
   ["行く", "いらっしゃる", "伺う／参る"],
   ["来る", "いらっしゃる／お越しになる／お見えになる", "参る"],
@@ -27,7 +28,7 @@ export const VERB_TABLE = [
   ["思う", "お思いになる", "存じる"],
 ];
 
-export const KEIGO_GROUPS = [
+const KEIGO_GROUP_DEFS: KeigoGroupInput[] = [
   {
     id: "verbs",
     icon: "🔤",
@@ -99,7 +100,14 @@ export const KEIGO_GROUPS = [
   },
 ];
 
-KEIGO_GROUPS.forEach((g) => g.items.forEach((it, i) => { it.id = `keigo-${g.id}-${i + 1}`; it.groupId = g.id; }));
+export const KEIGO_GROUPS: KeigoGroup[] = KEIGO_GROUP_DEFS.map((g) => ({
+  ...g,
+  items: g.items.map((it, i): KeigoItem => ({ ...it, id: `keigo-${g.id}-${i + 1}`, groupId: g.id })),
+}));
 
-export const KEIGO_BY_ID = Object.fromEntries(KEIGO_GROUPS.flatMap((g) => g.items.map((it) => [it.id, it])));
-export const KEIGO_GROUP_BY_ID = Object.fromEntries(KEIGO_GROUPS.map((g) => [g.id, g]));
+export const KEIGO_BY_ID: Record<string, KeigoItem | undefined> = Object.fromEntries(
+  KEIGO_GROUPS.flatMap((g) => g.items.map((it) => [it.id, it] as const)),
+);
+export const KEIGO_GROUP_BY_ID: Record<string, KeigoGroup | undefined> = Object.fromEntries(
+  KEIGO_GROUPS.map((g) => [g.id, g] as const),
+);

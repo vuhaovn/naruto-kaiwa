@@ -1,6 +1,7 @@
 // Mỗi mục: { ja, romaji, vi, when, ex, exVi, note? }
+import type { FillerGroup } from "../types";
 
-export const FILLER_GROUPS = [
+export const FILLER_GROUPS: FillerGroup[] = [
   {
     id: "stall",
     icon: "⏳",

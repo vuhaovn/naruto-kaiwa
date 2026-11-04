@@ -5,10 +5,11 @@ import { FILLER_GROUPS } from "../lib/data/fillers";
 import { speakJa } from "../lib/speech";
 
 export default function Fillers() {
-  const [group, setGroup] = useState(FILLER_GROUPS[0].id);
+  const [groupId, setGroupId] = useState(FILLER_GROUPS[0]?.id ?? "");
   const [quiz, setQuiz] = useState(false);
-  const [opened, setOpened] = useState({});
-  const g = FILLER_GROUPS.find((x) => x.id === group);
+  const [opened, setOpened] = useState<Record<number, boolean>>({});
+  const g = FILLER_GROUPS.find((x) => x.id === groupId) ?? FILLER_GROUPS[0];
+  if (!g) return null;
 
   return (
     <div>
@@ -16,7 +17,14 @@ export default function Fillers() {
 
       <div className="pills">
         {FILLER_GROUPS.map((x) => (
-          <button key={x.id} className={x.id === group ? "on" : ""} onClick={() => { setGroup(x.id); setOpened({}); }}>
+          <button
+            key={x.id}
+            className={x.id === g.id ? "on" : ""}
+            onClick={() => {
+              setGroupId(x.id);
+              setOpened({});
+            }}
+          >
             {x.icon} {x.title}
           </button>
         ))}
@@ -25,7 +33,14 @@ export default function Fillers() {
       <div className="card tip">{g.desc}</div>
 
       <label className="quiz-toggle">
-        <input type="checkbox" checked={quiz} onChange={(e) => { setQuiz(e.target.checked); setOpened({}); }} />
+        <input
+          type="checkbox"
+          checked={quiz}
+          onChange={(e) => {
+            setQuiz(e.target.checked);
+            setOpened({});
+          }}
+        />
         Chế độ tự kiểm tra: ẩn giải thích, chạm vào thẻ để xem
       </label>
 
@@ -33,13 +48,25 @@ export default function Fillers() {
         {g.items.map((it, i) => {
           const hidden = quiz && !opened[i];
           return (
-            <div key={i} className={`card filler ${hidden ? "hidden" : ""}`} onClick={() => quiz && setOpened({ ...opened, [i]: !opened[i] })}>
+            <div
+              key={i}
+              className={`card filler ${hidden ? "hidden" : ""}`}
+              onClick={() => quiz && setOpened({ ...opened, [i]: !opened[i] })}
+            >
               <div className="f-head">
                 <div>
                   <div className="f-ja" lang="ja">{it.ja}</div>
                   <div className="f-romaji">{it.romaji}</div>
                 </div>
-                <button className="btn ghost small" onClick={(e) => { e.stopPropagation(); speakJa(it.ja.split("／")[0].replace(/〜/g, "")); }}>🔊</button>
+                <button
+                  className="btn ghost small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void speakJa((it.ja.split("／")[0] ?? it.ja).replace(/〜/g, ""));
+                  }}
+                >
+                  🔊
+                </button>
               </div>
               {hidden ? (
                 <div className="f-hiddenhint">Nghĩa là gì? Dùng khi nào? (chạm để xem)</div>
@@ -50,7 +77,15 @@ export default function Fillers() {
                   <div className="f-ex">
                     <div className="f-ex-ja" lang="ja">
                       {it.ex}
-                      <button className="btn ghost small" onClick={(e) => { e.stopPropagation(); speakJa(it.ex); }}>🔊</button>
+                      <button
+                        className="btn ghost small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void speakJa(it.ex);
+                        }}
+                      >
+                        🔊
+                      </button>
                     </div>
                     <div className="f-ex-vi">{it.exVi}</div>
                   </div>

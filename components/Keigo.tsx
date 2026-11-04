@@ -3,32 +3,50 @@
 import { useEffect, useRef, useState } from "react";
 import { KEIGO_GROUPS, KEIGO_GROUP_BY_ID, KEIGO_BY_ID, KEIGO_TYPES, VERB_TABLE } from "../lib/data/keigo";
 import { speakJa } from "../lib/speech";
+import type { AppState, KeigoItem, Settings } from "../lib/types";
 import { useDrill, TimerBox, MicBox } from "./drill";
-import { shuffle, DrillHeader, NavRow, DoneCard, FavStar, PracticeSettings } from "./Practice";
+import { shuffle, DrillHeader, NavRow, DoneCard, FavStar, PracticeSettings, type OnSettings } from "./Practice";
 
-function idsFor(gid, state) {
-  if (gid === "fav") return state.favorites.ids.filter((id) => KEIGO_BY_ID[id]);
-  if (gid === "mix") return KEIGO_GROUPS.flatMap((g) => g.items.map((it) => it.id));
-  return KEIGO_GROUP_BY_ID[gid].items.map((it) => it.id);
+/** Id nhóm, hoặc "fav" (yêu thích), hoặc "mix" (trộn tất cả) */
+export type KeigoTarget = string;
+
+export interface KeigoRequest {
+  groupId: KeigoTarget;
+  n: number;
 }
 
-function titleFor(gid) {
+function idsFor(gid: KeigoTarget, state: AppState): string[] {
+  if (gid === "fav") return state.favorites.ids.filter((id) => KEIGO_BY_ID[id]);
+  if (gid === "mix") return KEIGO_GROUPS.flatMap((g) => g.items.map((it) => it.id));
+  return KEIGO_GROUP_BY_ID[gid]?.items.map((it) => it.id) ?? [];
+}
+
+function titleFor(gid: KeigoTarget): string {
   if (gid === "fav") return "⭐ Kính ngữ yêu thích";
   if (gid === "mix") return "🎲 Trộn tất cả";
   const g = KEIGO_GROUP_BY_ID[gid];
-  return `${g.icon} ${g.name}`;
+  return g ? `${g.icon} ${g.name}` : "";
 }
 
-export default function Keigo({ state, onPracticed, onToggleFav, onSettings, request, onRequestHandled }) {
-  const [groupId, setGroupId] = useState(null);
-  const [order, setOrder] = useState([]);
+interface KeigoProps {
+  state: AppState;
+  onPracticed: () => void;
+  onToggleFav: (id: string) => void;
+  onSettings: OnSettings;
+  request: KeigoRequest | null;
+  onRequestHandled: () => void;
+}
+
+export default function Keigo({ state, onPracticed, onToggleFav, onSettings, request, onRequestHandled }: KeigoProps) {
+  const [groupId, setGroupId] = useState<KeigoTarget | null>(null);
+  const [order, setOrder] = useState<string[]>([]);
   const [idx, setIdx] = useState(0);
   const [done, setDone] = useState(false);
   const [round, setRound] = useState(0);
-  const counted = useRef(new Set());
+  const counted = useRef(new Set<string>());
   const { settings } = state;
 
-  function start(gid) {
+  function start(gid: KeigoTarget): void {
     const ids = idsFor(gid, state);
     if (!ids.length) return;
     setOrder(gid === "mix" || settings.shuffle ? shuffle(ids) : ids);
@@ -47,19 +65,30 @@ export default function Keigo({ state, onPracticed, onToggleFav, onSettings, req
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
-  const onEngaged = (id) => {
+  const onEngaged = (id: string): void => {
     if (counted.current.has(id)) return;
     counted.current.add(id);
     onPracticed();
   };
 
-  if (!groupId) return <KeigoHome state={state} onStart={start} settings={settings} onSettings={onSettings} />;
+  if (!groupId) return <KeigoHome state={state} onStart={start} onSettings={onSettings} />;
 
   if (done) {
-    return <DoneCard total={order.length} practiced={counted.current.size} onAgain={() => start(groupId)} onBack={() => setGroupId(null)} backLabel="Chọn nhóm khác" />;
+    return (
+      <DoneCard
+        total={order.length}
+        practiced={counted.current.size}
+        onAgain={() => start(groupId)}
+        onBack={() => setGroupId(null)}
+        backLabel="Chọn nhóm khác"
+      />
+    );
   }
 
-  const it = KEIGO_BY_ID[order[idx]];
+  const itemId = order[idx];
+  const it: KeigoItem | undefined = itemId ? KEIGO_BY_ID[itemId] : undefined;
+  if (!it) return null;
+  const mixed = groupId === "fav" || groupId === "mix";
 
   return (
     <div>
@@ -72,14 +101,20 @@ export default function Keigo({ state, onPracticed, onToggleFav, onSettings, req
         isFav={state.favorites.ids.includes(it.id)}
         onToggleFav={() => onToggleFav(it.id)}
         onEngaged={() => onEngaged(it.id)}
-        groupLabel={groupId === "fav" || groupId === "mix" ? KEIGO_GROUP_BY_ID[it.groupId].name : null}
+        groupLabel={mixed ? (KEIGO_GROUP_BY_ID[it.groupId]?.name ?? null) : null}
       />
       <NavRow idx={idx} total={order.length} onPrev={() => setIdx(idx - 1)} onNext={() => setIdx(idx + 1)} onDone={() => setDone(true)} />
     </div>
   );
 }
 
-function KeigoHome({ state, onStart, settings, onSettings }) {
+interface KeigoHomeProps {
+  state: AppState;
+  onStart: (gid: KeigoTarget) => void;
+  onSettings: OnSettings;
+}
+
+function KeigoHome({ state, onStart, onSettings }: KeigoHomeProps) {
   const favCount = state.favorites.ids.filter((id) => KEIGO_BY_ID[id]).length;
   return (
     <div>
@@ -120,28 +155,49 @@ function KeigoHome({ state, onStart, settings, onSettings }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Thường</th><th>尊敬語 (người khác)</th><th>謙譲語 (mình)</th></tr>
+              <tr>
+                <th>Thường</th>
+                <th>尊敬語 (người khác)</th>
+                <th>謙譲語 (mình)</th>
+              </tr>
             </thead>
             <tbody>
-              {VERB_TABLE.map((r) => (
-                <tr key={r[0]} lang="ja"><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>
+              {VERB_TABLE.map(([plain, sonkei, kenjo]) => (
+                <tr key={plain} lang="ja">
+                  <td>{plain}</td>
+                  <td>{sonkei}</td>
+                  <td>{kenjo}</td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="muted small">Động từ không có trong bảng: 尊敬語 = お＋Vます＋になる (お待ちになる), 謙譲語 = お＋Vます＋する／いたす (お待ちする). Với danh động từ: ご確認になる / ご確認いたします.</p>
+        <p className="muted small">
+          Động từ không có trong bảng: 尊敬語 = お＋Vます＋になる (お待ちになる), 謙譲語 = お＋Vます＋する／いたす (お待ちする). Với danh động từ:
+          ご確認になる / ご確認いたします.
+        </p>
       </details>
 
-      <PracticeSettings settings={settings} onSettings={onSettings} />
+      <PracticeSettings settings={state.settings} onSettings={onSettings} />
     </div>
   );
 }
 
-function KeigoCard({ it, settings, onSettings, isFav, onToggleFav, onEngaged, groupLabel }) {
-  const drill = useDrill({ text: it.plain, seconds: settings.seconds || 10, autoSpeak: settings.autoSpeak, onEngaged });
+interface KeigoCardProps {
+  it: KeigoItem;
+  settings: Settings;
+  onSettings: OnSettings;
+  isFav: boolean;
+  onToggleFav: () => void;
+  onEngaged: () => void;
+  groupLabel: string | null;
+}
+
+function KeigoCard({ it, settings, onSettings, isFav, onToggleFav, onEngaged, groupLabel }: KeigoCardProps) {
+  const drill = useDrill({ text: it.plain, seconds: settings.seconds, autoSpeak: settings.autoSpeak, onEngaged });
   const [showAns, setShowAns] = useState(false);
 
-  function reveal() {
+  function reveal(): void {
     setShowAns((v) => !v);
     drill.pause();
     onEngaged();
@@ -160,7 +216,9 @@ function KeigoCard({ it, settings, onSettings, isFav, onToggleFav, onEngaged, gr
       <div className="k-task">→ Nói lại bằng <b>kính ngữ</b></div>
 
       <div className="row qtools">
-        <button className="btn small" onClick={drill.read} disabled={drill.speaking}>{drill.speaking ? "🔊 Đang đọc…" : "🔊 Nghe câu thường"}</button>
+        <button className="btn small" onClick={() => void drill.read()} disabled={drill.speaking}>
+          {drill.speaking ? "🔊 Đang đọc…" : "🔊 Nghe câu thường"}
+        </button>
       </div>
 
       <TimerBox drill={drill} onSeconds={(v) => onSettings({ seconds: v })} readingLabel="🔊 Đang đọc câu thường…" />
@@ -173,7 +231,7 @@ function KeigoCard({ it, settings, onSettings, isFav, onToggleFav, onEngaged, gr
           {it.ans.map((a, i) => (
             <div key={i} className={`k-ans ${i === 0 ? "main" : ""}`}>
               <span lang="ja">{a}</span>
-              <button className="btn ghost small" onClick={() => speakJa(a)}>🔊</button>
+              <button className="btn ghost small" onClick={() => void speakJa(a)}>🔊</button>
             </div>
           ))}
           <div className="k-note">💡 {it.note}</div>

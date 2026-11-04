@@ -8,14 +8,21 @@ Web app luyện hội thoại tiếng Nhật theo công thức 3 bước: **Ph�
 
 ## Cấu trúc
 
+TypeScript (strict). Kiểm tra lỗi kiểu: `npm run typecheck` (`npm run build` cũng tự kiểm tra).
+
 ```
-app/                 layout + trang chính
-components/          KaiwaApp (khung + đồng bộ), Practice, Fillers, Favorites, Stats
-lib/data/            questions.js (8 chủ đề × 15 câu), fillers.js (câu câu giờ, aizuchi)
-lib/store.js         dữ liệu người dùng + gộp dữ liệu giữa các thiết bị
-lib/supabase.js      kết nối Supabase
-lib/speech.js        phát âm + nhận giọng nói tiếng Nhật
-supabase/schema.sql  tạo bảng trên Supabase
+app/                    layout + trang chính
+components/             KaiwaApp (khung + đồng bộ), Practice, Keigo, Fillers, Favorites, Stats
+components/drill.tsx    phần dùng chung: đọc câu → đếm ngược → micro
+lib/types.ts            kiểu dữ liệu dùng chung
+lib/data/questions.ts   8 chủ đề đời thường × 15 câu (+ gộp chủ đề BrSE)
+lib/data/brse.ts        5 chủ đề tiếng Nhật IT / BrSE × 15 câu
+lib/data/keigo.ts       3 nhóm luyện kính ngữ × 15 câu + bảng động từ
+lib/data/fillers.ts     câu câu giờ, aizuchi, hỏi lại
+lib/store.ts            dữ liệu người dùng + gộp dữ liệu giữa các thiết bị
+lib/supabase.ts         kết nối Supabase
+lib/speech.ts           phát âm + nhận giọng nói tiếng Nhật
+supabase/schema.sql     tạo bảng trên Supabase
 ```
 
 ## Bước 1: Tạo Supabase (miễn phí)

@@ -1,8 +1,9 @@
 // Chủ đề tiếng Nhật IT cho BrSE: phía Nhật (PM / khách hàng / người phỏng vấn) hỏi, bạn trả lời.
 // Bước ③ trong công việc thường là "xác nhận lại" hoặc "hỏi lại" để tránh hiểu sai.
 import { Q } from "./q";
+import type { TopicInput } from "../types";
 
-export const BRSE_TOPICS = [
+export const BRSE_TOPICS: TopicInput[] = [
   {
     id: "brse-progress",
     icon: "📈",

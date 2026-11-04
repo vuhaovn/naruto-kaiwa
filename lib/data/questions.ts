@@ -1,14 +1,15 @@
 // Mỗi câu hỏi: { ja, vi, samples: [{ r, a, q, vi }] }
 //   r = Phản ứng, a = Trả lời + thêm 1 ý, q = Hỏi lại, vi = nghĩa cả câu mẫu
 import { Q } from "./q";
+import type { Topic, TopicGroup, TopicInput, Question } from "../types";
 import { BRSE_TOPICS } from "./brse";
 
-export const TOPIC_GROUPS = [
+export const TOPIC_GROUPS: TopicGroup[] = [
   { id: "daily", title: "Hội thoại đời thường" },
   { id: "brse", title: "💼 Tiếng Nhật IT · BrSE", desc: "Phía Nhật (PM, khách hàng, người phỏng vấn) hỏi, bạn trả lời. Bước ③ trong công việc: xác nhận lại hoặc hỏi lại để tránh hiểu sai." },
 ];
 
-const DAILY_TOPICS = [
+const DAILY_TOPICS: TopicInput[] = [
   {
     id: "intro",
     icon: "🙋",
@@ -557,13 +558,21 @@ const DAILY_TOPICS = [
   },
 ];
 
-export const TOPICS = [
-  ...DAILY_TOPICS.map((t) => ({ ...t, group: "daily" })),
-  ...BRSE_TOPICS.map((t) => ({ ...t, group: "brse" })),
+// Gán id cố định cho từng câu: "<topic>-<số thứ tự>"
+function withIds(t: TopicInput, group: Topic["group"]): Topic {
+  return {
+    ...t,
+    group,
+    questions: t.questions.map((q, i): Question => ({ ...q, id: `${t.id}-${i + 1}`, topicId: t.id })),
+  };
+}
+
+export const TOPICS: Topic[] = [
+  ...DAILY_TOPICS.map((t) => withIds(t, "daily")),
+  ...BRSE_TOPICS.map((t) => withIds(t, "brse")),
 ];
 
-// Gán id cố định cho từng câu: "<topic>-<số thứ tự>"
-TOPICS.forEach((t) => t.questions.forEach((q, i) => { q.id = `${t.id}-${i + 1}`; q.topicId = t.id; }));
-
-export const QUESTION_BY_ID = Object.fromEntries(TOPICS.flatMap((t) => t.questions.map((q) => [q.id, q])));
-export const TOPIC_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
+export const QUESTION_BY_ID: Record<string, Question | undefined> = Object.fromEntries(
+  TOPICS.flatMap((t) => t.questions.map((q) => [q.id, q] as const)),
+);
+export const TOPIC_BY_ID: Record<string, Topic | undefined> = Object.fromEntries(TOPICS.map((t) => [t.id, t] as const));

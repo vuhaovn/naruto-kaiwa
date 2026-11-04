@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { bestStreak, countOn, dateKey, streak, totalCount } from "../lib/store";
+import type { AppState, SyncState } from "../lib/types";
 
-const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
 
-export default function Stats({ state, session, sync, onSyncNow }) {
+interface StatsProps {
+  state: AppState;
+  session: Session | null;
+  sync: SyncState;
+  onSyncNow: () => void;
+}
+
+export default function Stats({ state, session, sync, onSyncNow }: StatsProps) {
   const today = countOn(state, dateKey());
-  const days = [];
+  const days: { d: Date; n: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
@@ -29,7 +38,9 @@ export default function Stats({ state, session, sync, onSyncNow }) {
 
       {today === 0 && (
         <div className="card tip">
-          {st > 0 ? `Hôm nay chưa luyện câu nào. Luyện ít nhất 1 câu để giữ chuỗi ${st} ngày nhé! 💪` : "Hôm nay chưa luyện câu nào. Bắt đầu chuỗi ngày mới thôi! 💪"}
+          {st > 0
+            ? `Hôm nay chưa luyện câu nào. Luyện ít nhất 1 câu để giữ chuỗi ${st} ngày nhé! 💪`
+            : "Hôm nay chưa luyện câu nào. Bắt đầu chuỗi ngày mới thôi! 💪"}
         </div>
       )}
 
@@ -39,12 +50,14 @@ export default function Stats({ state, session, sync, onSyncNow }) {
           {days.map(({ d, n }, i) => (
             <div className="bar-col" key={i} title={`${dateKey(d)}: ${n} câu`}>
               <div className="bar-val">{n || ""}</div>
-              <div className="bar-track"><div className={`bar ${i === 13 ? "today" : ""}`} style={{ height: `${(n / max) * 100}%` }} /></div>
+              <div className="bar-track">
+                <div className={`bar ${i === 13 ? "today" : ""}`} style={{ height: `${(n / max) * 100}%` }} />
+              </div>
               <div className="bar-lbl">{i === 13 ? "Nay" : WD[d.getDay()]}</div>
             </div>
           ))}
         </div>
-        <p className="muted small">Một câu được tính khi bạn nói vào micro hoặc xem câu mẫu.</p>
+        <p className="muted small">Một câu được tính khi bạn nói vào micro hoặc xem câu mẫu/đáp án.</p>
       </div>
 
       <Account session={session} sync={sync} onSyncNow={onSyncNow} />
@@ -52,7 +65,7 @@ export default function Stats({ state, session, sync, onSyncNow }) {
   );
 }
 
-function Stat({ big, label, icon }) {
+function Stat({ big, label, icon }: { big: number; label: string; icon: string }) {
   return (
     <div className="card stat">
       <div className="stat-icon">{icon}</div>
@@ -62,7 +75,13 @@ function Stat({ big, label, icon }) {
   );
 }
 
-function Account({ session, sync, onSyncNow }) {
+interface AccountProps {
+  session: Session | null;
+  sync: SyncState;
+  onSyncNow: () => void;
+}
+
+function Account({ session, sync, onSyncNow }: AccountProps) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,6 +96,7 @@ function Account({ session, sync, onSyncNow }) {
       </div>
     );
   }
+  const sb = supabase;
 
   if (session) {
     return (
@@ -85,23 +105,23 @@ function Account({ session, sync, onSyncNow }) {
         <p>Đã đăng nhập: <b>{session.user.email}</b></p>
         <p className="small">
           {sync.status === "syncing" && "⏳ Đang đồng bộ…"}
-          {sync.status === "ok" && `✅ Đã đồng bộ lúc ${sync.at?.toLocaleTimeString("vi-VN")}`}
+          {sync.status === "ok" && `✅ Đã đồng bộ lúc ${sync.at?.toLocaleTimeString("vi-VN") ?? ""}`}
           {sync.status === "error" && <span className="err">⚠️ Lỗi đồng bộ: {sync.error}</span>}
           {sync.status === "idle" && "Đang chờ đồng bộ…"}
         </p>
         <div className="row">
           <button className="btn small" onClick={onSyncNow}>🔄 Đồng bộ ngay</button>
-          <button className="btn ghost small" onClick={() => supabase.auth.signOut()}>Đăng xuất</button>
+          <button className="btn ghost small" onClick={() => void sb.auth.signOut()}>Đăng xuất</button>
         </div>
       </div>
     );
   }
 
-  async function sendLink(e) {
+  async function sendLink(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setBusy(true);
     setErr("");
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await sb.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin },
     });
@@ -113,14 +133,18 @@ function Account({ session, sync, onSyncNow }) {
   return (
     <div className="card">
       <div className="card-title">☁️ Đăng nhập để đồng bộ</div>
-      <p className="small">Đăng nhập cùng một email trên điện thoại và máy tính, tiến độ và câu yêu thích sẽ tự đồng bộ. Không cần mật khẩu.</p>
+      <p className="small">
+        Đăng nhập cùng một email trên điện thoại và máy tính, tiến độ và câu yêu thích sẽ tự đồng bộ. Không cần mật khẩu.
+      </p>
       {sent ? (
         <div className="alert ok">
           📧 Đã gửi link đăng nhập tới <b>{email}</b>. Mở email <b>trên thiết bị này</b> và bấm vào link.
-          <div><button className="btn ghost small" onClick={() => setSent(false)}>Gửi lại / đổi email</button></div>
+          <div>
+            <button className="btn ghost small" onClick={() => setSent(false)}>Gửi lại / đổi email</button>
+          </div>
         </div>
       ) : (
-        <form className="login" onSubmit={sendLink}>
+        <form className="login" onSubmit={(e) => void sendLink(e)}>
           <input type="email" required placeholder="email@cua-ban.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           <button className="btn primary" disabled={busy}>{busy ? "Đang gửi…" : "Gửi link đăng nhập"}</button>
         </form>

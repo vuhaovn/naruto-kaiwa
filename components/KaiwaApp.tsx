@@ -1,17 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase, pullRemote, pushRemote } from "../lib/supabase";
 import {
   addPractice, countOn, dateKey, getDeviceId, loadLocal, merge, saveLocal, streak, toggleFavorite, toRemote,
 } from "../lib/store";
-import Practice from "./Practice";
+import type { AppState, Settings, SyncState } from "../lib/types";
+import Practice, { type PracticeRequest } from "./Practice";
+import Keigo, { type KeigoRequest } from "./Keigo";
 import Fillers from "./Fillers";
-import Keigo from "./Keigo";
 import Favorites from "./Favorites";
 import Stats from "./Stats";
 
-const TABS = [
+type TabId = "practice" | "keigo" | "fillers" | "favorites" | "stats";
+
+const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: "practice", icon: "🗣️", label: "Luyện nói" },
   { id: "keigo", icon: "🙇", label: "Kính ngữ" },
   { id: "fillers", icon: "💬", label: "Câu giờ" },
@@ -20,12 +24,12 @@ const TABS = [
 ];
 
 export default function KaiwaApp() {
-  const [state, setState] = useState(null);
-  const [tab, setTab] = useState("practice");
-  const [session, setSession] = useState(null);
-  const [sync, setSync] = useState({ status: "idle", at: null, error: null });
-  const [practiceRequest, setPracticeRequest] = useState(null);
-  const [keigoRequest, setKeigoRequest] = useState(null);
+  const [state, setState] = useState<AppState | null>(null);
+  const [tab, setTab] = useState<TabId>("practice");
+  const [session, setSession] = useState<Session | null>(null);
+  const [sync, setSync] = useState<SyncState>({ status: "idle", at: null, error: null });
+  const [practiceRequest, setPracticeRequest] = useState<PracticeRequest | null>(null);
+  const [keigoRequest, setKeigoRequest] = useState<KeigoRequest | null>(null);
 
   const deviceId = useRef("local");
   const stateRef = useRef(state);
@@ -46,28 +50,30 @@ export default function KaiwaApp() {
   // Đăng nhập
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const userId = session?.user?.id;
+  const userId = session?.user.id;
 
   // Kéo dữ liệu server → gộp → đẩy lại server
-  const syncNow = useCallback(async () => {
-    if (!supabase || !userId || !stateRef.current || syncing.current) return;
+  const syncNow = useCallback(async (): Promise<void> => {
+    const local = stateRef.current;
+    if (!supabase || !userId || !local || syncing.current) return;
     syncing.current = true;
     setSync((s) => ({ ...s, status: "syncing" }));
     try {
       const remote = await pullRemote(userId);
-      const merged = merge(stateRef.current, remote);
+      const merged = merge(local, remote);
       const payload = toRemote(merged);
       await pushRemote(userId, payload);
       lastPushed.current = JSON.stringify(payload);
-      setState((prev) => merge(prev, merged));
+      // Gộp thêm 1 lần với state hiện tại để không mất thay đổi xảy ra trong lúc đồng bộ
+      setState((prev) => (prev ? merge(prev, toRemote(merged)) : merged));
       setSync({ status: "ok", at: new Date(), error: null });
     } catch (e) {
-      setSync({ status: "error", at: new Date(), error: e?.message || String(e) });
+      setSync({ status: "error", at: new Date(), error: e instanceof Error ? e.message : String(e) });
     } finally {
       syncing.current = false;
     }
@@ -76,32 +82,38 @@ export default function KaiwaApp() {
   // Đồng bộ khi đăng nhập xong / khi tải xong dữ liệu
   const loaded = state !== null;
   useEffect(() => {
-    if (userId && loaded) syncNow();
+    if (userId && loaded) void syncNow();
   }, [userId, loaded, syncNow]);
 
   // Có thay đổi → đẩy lên sau 1.5 giây
   useEffect(() => {
     if (!userId || !state) return;
     if (JSON.stringify(toRemote(state)) === lastPushed.current) return;
-    const t = setTimeout(syncNow, 1500);
+    const t = setTimeout(() => void syncNow(), 1500);
     return () => clearTimeout(t);
   }, [state, userId, syncNow]);
 
   // Quay lại app / có mạng lại → kéo dữ liệu mới từ thiết bị khác
   useEffect(() => {
     if (!userId) return;
-    const onVisible = () => document.visibilityState === "visible" && syncNow();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void syncNow();
+    };
+    const onOnline = () => void syncNow();
     document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("online", syncNow);
+    window.addEventListener("online", onOnline);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("online", syncNow);
+      window.removeEventListener("online", onOnline);
     };
   }, [userId, syncNow]);
 
-  const onPracticed = useCallback(() => setState((s) => addPractice(s, deviceId.current)), []);
-  const onToggleFav = useCallback((qid) => setState((s) => toggleFavorite(s, qid)), []);
-  const onSettings = useCallback((patch) => setState((s) => ({ ...s, settings: { ...s.settings, ...patch } })), []);
+  const onPracticed = useCallback(() => setState((s) => (s ? addPractice(s, deviceId.current) : s)), []);
+  const onToggleFav = useCallback((id: string) => setState((s) => (s ? toggleFavorite(s, id) : s)), []);
+  const onSettings = useCallback(
+    (patch: Partial<Settings>) => setState((s) => (s ? { ...s, settings: { ...s.settings, ...patch } } : s)),
+    [],
+  );
 
   const practiceFavorites = () => {
     setPracticeRequest({ topicId: "fav", n: Date.now() });
@@ -128,7 +140,7 @@ export default function KaiwaApp() {
         <div className="topstats">
           <span title="Số câu hôm nay">📝 {today}</span>
           <span title="Chuỗi ngày liên tục">🔥 {st}</span>
-          <button className={`cloud ${cloudClass(supabase, session, sync)}`} onClick={() => setTab("stats")} title={cloudTitle(supabase, session, sync)}>
+          <button className={`cloud ${cloudClass(session, sync)}`} onClick={() => setTab("stats")} title={cloudTitle(session, sync)}>
             {session ? "☁️" : "💾"}
           </button>
         </div>
@@ -167,7 +179,7 @@ export default function KaiwaApp() {
         {tab === "favorites" && (
           <Favorites state={state} onToggleFav={onToggleFav} onPractice={practiceFavorites} onPracticeKeigo={practiceKeigoFavorites} />
         )}
-        {tab === "stats" && <Stats state={state} session={session} sync={sync} onSyncNow={syncNow} />}
+        {tab === "stats" && <Stats state={state} session={session} sync={sync} onSyncNow={() => void syncNow()} />}
       </main>
 
       <nav className="tabbar">
@@ -182,15 +194,15 @@ export default function KaiwaApp() {
   );
 }
 
-function cloudClass(sb, session, sync) {
-  if (!sb || !session) return "off";
+function cloudClass(session: Session | null, sync: SyncState): string {
+  if (!supabase || !session) return "off";
   return sync.status;
 }
 
-function cloudTitle(sb, session, sync) {
-  if (!sb) return "Chưa bật đồng bộ: dữ liệu lưu trên máy này";
+function cloudTitle(session: Session | null, sync: SyncState): string {
+  if (!supabase) return "Chưa bật đồng bộ: dữ liệu lưu trên máy này";
   if (!session) return "Chưa đăng nhập: bấm để đăng nhập và đồng bộ";
-  if (sync.status === "error") return "Lỗi đồng bộ: " + sync.error;
+  if (sync.status === "error") return "Lỗi đồng bộ: " + (sync.error ?? "");
   if (sync.status === "syncing") return "Đang đồng bộ…";
   return "Đã đồng bộ";
 }
